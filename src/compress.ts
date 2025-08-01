@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
-import { ImageCompressionError, safeFileOperation } from './errors';
+import { safeFileOperation } from './errors';
 
 export interface ProcessOptions {
   quality: number;

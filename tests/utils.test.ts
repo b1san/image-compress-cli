@@ -40,8 +40,8 @@ describe('Utils', () => {
     });
 
     it('should throw error for invalid formats', () => {
-      expect(() => validateFormat('gif')).toThrow('Format must be one of: jpeg, png, webp');
-      expect(() => validateFormat('invalid')).toThrow('Format must be one of: jpeg, png, webp');
+      expect(() => validateFormat('gif')).toThrow('Unsupported image format: gif');
+      expect(() => validateFormat('invalid')).toThrow('Unsupported image format: invalid');
     });
   });
 

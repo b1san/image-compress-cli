@@ -30,9 +30,11 @@ export class InsufficientSpaceError extends ImageCompressionError {
 /**
  * ディスクの空き容量をチェック
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
 export function checkDiskSpace(outputPath: string, estimatedSize: number): boolean {
   try {
-    const stats = fs.statSync(path.dirname(outputPath));
+    // ディレクトリの存在確認のみ実行
+    fs.statSync(path.dirname(outputPath));
     // 簡易的なチェック（実際のディスク容量チェックは複雑）
     return true; // プラットフォーム依存のため、常にtrueを返す
   } catch {

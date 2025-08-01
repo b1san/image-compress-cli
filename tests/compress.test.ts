@@ -59,9 +59,8 @@ describe('Compress', () => {
 
       expect(result.success).toBe(true);
       expect(result.inputSize).toBeLessThan(1024);
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('Skipping small file')
-      );
+      expect(result.skipped).toBe(true);
+      expect(result.reductionPercent).toBe(0);
     });
 
     it('should handle invalid image files gracefully', async () => {

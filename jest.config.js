@@ -4,7 +4,7 @@ module.exports = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   transform: {
-    '^.+\.ts$': 'ts-jest',
+    '^.+\\.ts$': 'ts-jest',
   },
   collectCoverage: true,
   coverageDirectory: 'coverage',
@@ -13,14 +13,5 @@ module.exports = {
     '/node_modules/',
     '/dist/',
     '/coverage/',
-  ],
-  extensionsToTreatAsEsm: ['.ts'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
-  transformIgnorePatterns: [
-    'node_modules/(?!(chalk)/)'
   ]
 };
