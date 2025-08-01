@@ -6,6 +6,7 @@ export interface ConfigFile {
   quality?: number;
   format?: string;
   aggressivePng?: boolean;
+  ultraPng?: boolean;
   skipSmall?: boolean;
   minSize?: number;
   output?: string;

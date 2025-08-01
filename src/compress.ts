@@ -12,6 +12,7 @@ export interface ProcessOptions {
   skipSmall?: boolean;
   minSize?: number;
   aggressivePng?: boolean;
+  ultraPng?: boolean; // 新しいオプション：Ultra PNG圧縮
 }
 
 export interface ProcessResult {
@@ -73,6 +74,7 @@ export async function processImage(
     
     // 圧縮とリサイズの処理
     let processedImage = image;
+    let outputSize: number = 0;
     
     if (options.width || options.height) {
       processedImage = processedImage.resize(options.width, options.height, {
@@ -89,22 +91,94 @@ export async function processImage(
         mozjpeg: true
       });
     } else if (options.format === 'png' || (options.format === undefined && path.extname(inputPath).toLowerCase() === '.png')) {
-      // PNGの場合、qualityを圧縮レベルに変換 (quality: 0-100 → compressionLevel: 9-0)
+      // PNGの場合、段階的圧縮を自動実行
       const compressionLevel = Math.round((100 - options.quality) * 9 / 100);
       
-      if (options.aggressivePng) {
-        processedImage = processedImage.png({
-          compressionLevel: 9,
-          progressive: inputSize > 10000,
-          palette: inputMetadata?.channels === 3,
-          effort: 10,
-        });
-      } else {
-        processedImage = processedImage.png({
-          compressionLevel,
-          progressive: false,
-        });
+      // まず標準圧縮を試行
+      let bestCompression = processedImage.png({
+        compressionLevel,
+        progressive: false,
+        palette: inputMetadata?.channels === 3,
+        quality: options.quality,
+      });
+      
+      // 標準圧縮の結果をバッファに保存して検証
+      const standardBuffer = await bestCompression.toBuffer();
+      let bestSize = standardBuffer.length;
+      let bestBuffer = standardBuffer;
+      let compressionMethod = 'standard';
+      
+      // 積極的圧縮を試行（aggressivePngオプションまたは標準圧縮で改善が少ない場合）
+      if (options.aggressivePng || bestSize >= inputSize * 0.8) {
+        try {
+          const aggressiveCompression = sharp(inputPath);
+          if (options.width || options.height) {
+            aggressiveCompression.resize(options.width, options.height, {
+              fit: 'inside',
+              withoutEnlargement: true
+            });
+          }
+          
+          const aggressiveBuffer = await aggressiveCompression.png({
+            compressionLevel: 9,
+            progressive: false,
+            palette: true,
+            quality: Math.max(20, options.quality - 30),
+            effort: 10,
+            colors: inputMetadata?.channels === 4 ? 256 : undefined,
+            dither: 1.0,
+          }).toBuffer();
+          
+          if (aggressiveBuffer.length < bestSize) {
+            bestBuffer = aggressiveBuffer;
+            bestSize = aggressiveBuffer.length;
+            compressionMethod = 'aggressive';
+          }
+        } catch (error) {
+          console.log(chalk.yellow(`⚠️ Aggressive compression failed, using standard`));
+        }
       }
+      
+      // 超強力圧縮を試行（ultraPngオプションまたは積極的圧縮でも改善が少ない場合）
+      if (options.ultraPng || bestSize >= inputSize * 0.6) {
+        try {
+          const ultraCompression = sharp(inputPath);
+          if (options.width || options.height) {
+            ultraCompression.resize(options.width, options.height, {
+              fit: 'inside',
+              withoutEnlargement: true
+            });
+          }
+          
+          const ultraBuffer = await ultraCompression
+            .png({
+              palette: true,
+              colors: inputMetadata?.channels === 4 ? 64 : 128,
+              dither: 1.0,
+            })
+            .png({
+              compressionLevel: 9,
+              quality: Math.max(5, options.quality - 60),
+              effort: 10,
+            }).toBuffer();
+          
+          if (ultraBuffer.length < bestSize) {
+            bestBuffer = ultraBuffer;
+            bestSize = ultraBuffer.length;
+            compressionMethod = 'ultra';
+          }
+        } catch (error) {
+          console.log(chalk.yellow(`⚠️ Ultra compression failed, using ${compressionMethod}`));
+        }
+      }
+      
+      // 最適な圧縮結果を保存
+      await fs.promises.writeFile(outputPath, bestBuffer);
+      
+      console.log(chalk.gray(`    🔧 PNG compression: ${compressionMethod} (${bestSize} bytes)`));
+      
+      // 出力ファイルサイズを取得（既に分かっているのでbestSizeを使用）
+      outputSize = bestSize;
     } else if (options.format === 'webp') {
       if (options.aggressivePng) {
         processedImage = processedImage.webp({
@@ -118,14 +192,22 @@ export async function processImage(
           quality: options.quality,
         });
       }
+      
+      // 画像を保存
+      await processedImage.toFile(outputPath);
+      
+      // 出力ファイルサイズを取得
+      const outputStats = fs.statSync(outputPath);
+      outputSize = outputStats.size;
+    } else {
+      // その他の形式（JPEG等）
+      // 画像を保存
+      await processedImage.toFile(outputPath);
+      
+      // 出力ファイルサイズを取得
+      const outputStats = fs.statSync(outputPath);
+      outputSize = outputStats.size;
     }
-
-    // 画像を保存
-    await processedImage.toFile(outputPath);
-    
-    // 出力ファイルサイズを取得
-    const outputStats = fs.statSync(outputPath);
-    const outputSize = outputStats.size;
     
     // ファイルサイズが増加した場合の警告
     if (outputSize > inputSize && path.extname(inputPath).toLowerCase() === '.png' && !options.format) {
@@ -188,8 +270,11 @@ export function displayProcessResult(result: ProcessResult): void {
   if (result.outputSize > result.inputSize) {
     console.log(chalk.yellow(`  ⚠️  File size increased by ${(result.outputSize - result.inputSize)} bytes`));
     if (path.extname(result.inputPath).toLowerCase() === '.png') {
-      console.log(chalk.gray(`      Consider using --format jpeg for photos or --aggressive-png for better compression`));
+      console.log(chalk.gray(`      💡 Try: --ultra-png for maximum PNG compression`));
+      console.log(chalk.gray(`      💡 Or: --format jpeg for photos (usually 90%+ reduction)`));
     }
+  } else if (result.reductionPercent > 0 && path.extname(result.inputPath).toLowerCase() === '.png') {
+    console.log(chalk.gray(`      💡 For even smaller PNG: try --ultra-png (slower but smaller)`));
   }
 }
 

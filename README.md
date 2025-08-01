@@ -1,4 +1,32 @@
+# im## 🚀 Features
+
+- **🔄 Batch Processing**: Process multiple images in a directory with a beautiful progress bar
+- **📦 Multiple Formats**: Support for JPEG, PNG, WebP, TIFF, and BMP
+- **🎯 Format Conversion**: Convert between image formats
+- **📏 Smart Resizing**: Resize images while maintaining aspect ratio
+- **⚡ High Performance**: Uses Sharp library for fast image processing
 # img-compress-cli
+
+画像フォルダを対象に、CLIから一括で画像圧縮・リサイズ・形式変換を行うNode.js製のツール。
+
+## 🚀 Features
+
+- **🔄 Batch Processing**: Process multiple images in a directory with a beautiful progress bar
+- **📦 Multiple Formats**: Support for JPEG, PNG, WebP, TIFF, and BMP
+- **� Format Conversion**: Convert between image formats
+- **📏 Smart Resizing**: Resize images while maintaining aspect ratio
+- **⚡ High Performance**: Uses Sharp library for fast image processing
+- **�🎨 Smart PNG Compression**: Automatic progressive compression (standard → aggressive → ultra)
+- **📊 Detailed Statistics**: Shows compression ratios and space saved
+- **⚙️ Configuration Files**: Support for persistent settings via config files
+- **🛡️ Error Handling**: Comprehensive error handling with helpful messages
+- **📈 Progress Tracking**: Visual progress bar for batch operations
+- **💡 自動提案機能**: 最適なフォーマット変換の提案
+- **⚡ スキップ機能**: 小さなファイルの自動スキップ
+- **📊 Detailed Statistics**: Shows compression ratios and space saved
+- **⚙️ Configuration Files**: Support for persistent settings via config files
+- **🛡️ Error Handling**: Comprehensive error handling with helpful messages
+- **📈 Progress Tracking**: Visual progress bar for batch operationsli
 
 画像フォルダを対象に、CLIから一括で画像圧縮・リサイズ・形式変換を行うNode.js製のツール。
 
@@ -49,8 +77,8 @@ img-compress ./input-folder
 # PNG写真 → JPEG変換（最大97%削減）
 img-compress ./photos --format jpeg --quality 75
 
-# PNG維持で積極的圧縮（最大40%削減）
-img-compress ./photos --quality 50 --aggressive-png
+# PNG自動最適化（標準→積極的→超強力を自動選択）
+img-compress ./photos --quality 50
 
 # WebP変換（バランス重視）
 img-compress ./photos --format webp --quality 80
@@ -65,6 +93,7 @@ img-compress ./photos --format webp --quality 80
 | `--resize` | `-r` | リサイズサイズ（例：800x600） | - |
 | `--format` | `-f` | 出力形式（jpeg, png, webp） | 元の形式 |
 | `--aggressive-png` | - | PNG積極的圧縮（遅いが小さい） | `false` |
+| `--ultra-png` | - | PNG超強力圧縮（最遅だが最小） | `false` |
 | `--skip-small` | - | 小さなファイルをスキップ | `true` |
 | `--min-size` | - | 処理する最小ファイルサイズ（bytes） | `1024` |
 
@@ -76,15 +105,34 @@ img-compress ./photos --format webp --quality 80
 img-compress ./photos --quality 70
 ```
 
-### PNG写真の最適化（大幅削減）
+## 🎨 スマートPNG圧縮
 
+このツールは**自動的に最適なPNG圧縮**を選択します：
+
+### 🔧 自動圧縮レベル選択
+1. **標準圧縮**: まず通常の圧縮を試行
+2. **積極的圧縮**: 標準で改善が少ない場合（80%以上のサイズ）、自動的により強力な圧縮を適用
+3. **超強力圧縮**: さらに必要な場合（60%以上のサイズ）、最大圧縮を自動適用
+
+### 📊 実際の処理例
 ```bash
-# JPEG変換（写真に最適）
-img-compress ./photos --format jpeg --quality 75
+# シンプルに実行するだけで最適化
+img-compress ./images --quality 70
 
-# PNG維持で積極的圧縮
-img-compress ./photos --quality 50 --aggressive-png
+# 出力例:
+✅ photo.png
+   Size: 2267.5KB → 891.2KB
+   Reduction: 61%
+   🔧 PNG compression: aggressive (891234 bytes)
 ```
+
+### ✨ 主な特徴
+- **オプション不要**: `--ultra-png`や`--aggressive-png`を指定しなくても自動最適化
+- **段階的処理**: 複数の圧縮レベルを試行し、最小サイズを自動選択
+- **透明性保持**: 透明度やアルファチャンネルを維持しながら圧縮
+- **インテリジェント判定**: ファイルサイズの改善度に応じて適切な圧縮レベルを選択
+
+**オプション無しで自動最適化！**
 
 ### WebP形式に一括変換
 
@@ -120,18 +168,28 @@ img-compress ./raw-photos \
 |-------------|---------|-----------|
 | PNG写真 | `--format jpeg --quality 75` | **90-98%** |
 | PNG写真（透明なし） | `--format webp --quality 80` | **85-95%** |
-| PNG維持 | `--aggressive-png --quality 50` | **30-50%** |
+| PNG維持（自動最適化） | `--quality 50` | **40-70%** |
 | JPEG写真 | `--quality 70-80` | **20-40%** |
 | 高解像度画像 | `--resize + --format webp` | **80-95%** |
+
+**✨ PNG画像は自動的に最適な圧縮方法が選択されます**
 
 ## 自動提案機能
 
 ツールが自動的に最適化を提案します：
 
 ```bash
-✓ photo.png 2267.5KB → 2698.6KB (+19.0%)
-  💡 Tip: Consider using --format jpeg for better compression of this PNG
+✅ photo.png
+   Size: 2267.5KB → 891.2KB
+   Reduction: 61%
+   � PNG compression: aggressive (891234 bytes)
+   💡 For even smaller PNG: try --ultra-png (slower but smaller)
 ```
+
+### 🤖 スマート提案システム
+- **ファイルサイズ増加時**: より適切なフォーマット変換を提案
+- **PNG最適化**: さらなる圧縮オプションを提案  
+- **処理結果表示**: 使用された圧縮レベルを明示
 
 ## 実際の使用例と結果
 
@@ -170,55 +228,58 @@ Space saved: 2.65 MB (41.6%)
 
 ## ⚙️ Configuration Files
 
-You can create configuration files to set default options:
+設定ファイルでデフォルトオプションを設定できます：
 
-### JavaScript Configuration (.img-compress.config.js)
+### JavaScript設定ファイル (.img-compress.config.js)
 ```javascript
 module.exports = {
   quality: 80,
   output: './compressed',
   minSize: 1024,
   skipSmall: true,
-  aggressivePng: false,
-  // format: 'jpeg',
-  // resize: '1920x1080',
+  // PNG圧縮オプション（どちらか一つを選択）
+  aggressivePng: false,   // 積極的圧縮を強制
+  ultraPng: false,        // 超強力圧縮を強制
+  // format: 'jpeg',      // 形式変換
+  // resize: '1920x1080', // リサイズ
 };
 ```
 
-### JSON Configuration (img-compress.config.json)
+### JSON設定ファイル (img-compress.config.json)
 ```json
 {
   "quality": 85,
   "output": "./output",
   "minSize": 2048,
   "skipSmall": true,
-  "aggressivePng": true
+  "aggressivePng": false,
+  "ultraPng": true
 }
 ```
 
-Configuration files are searched in the following order:
-1. `.img-compress.config.js` (in current directory)
-2. `img-compress.config.json` (in current directory) 
-3. `img-compress.config.js` (in current directory)
+### 📁 設定ファイル検索順序
+1. `.img-compress.config.js` (カレントディレクトリ)
+2. `img-compress.config.json` (カレントディレクトリ) 
+3. `img-compress.config.js` (カレントディレクトリ)
 
-CLI options will override configuration file settings.
+**注意**: CLIオプションは設定ファイルの値を上書きします。
 
-## 🛡️ Error Handling
+## 🛡️ エラーハンドリング
 
-The tool includes comprehensive error handling:
+ツールには包括的なエラーハンドリングが含まれています：
 
-- **File Access Errors**: Handles permission issues and missing files
-- **Format Validation**: Validates supported image formats
-- **Size Warnings**: Alerts when compression increases file size
-- **Progress Tracking**: Shows which files fail during batch processing
-- **Graceful Recovery**: Continues processing other files if one fails
+- **ファイルアクセスエラー**: 権限問題や存在しないファイルの処理
+- **フォーマット検証**: サポートされる画像形式の検証
+- **サイズ警告**: 圧縮によりファイルサイズが増加した場合の警告
+- **進捗追跡**: バッチ処理中に失敗したファイルの追跡
+- **グレースフル復旧**: 一つのファイルが失敗しても他のファイルの処理を継続
 
-## 📊 Performance Features
+## 📊 パフォーマンス機能
 
-- **Progress Bar**: Visual progress indicator for batch operations
-- **Smart PNG Handling**: Detects when PNG compression isn't effective
-- **File Size Optimization**: Skips very small files to avoid overhead
-- **Memory Efficient**: Processes images one at a time to manage memory usage
+- **プログレスバー**: バッチ操作の視覚的進捗インジケーター
+- **スマートPNG処理**: PNG圧縮が効果的でない場合の検出
+- **ファイルサイズ最適化**: オーバーヘッドを避けるため非常に小さなファイルをスキップ
+- **メモリ効率**: メモリ使用量を管理するため画像を一つずつ処理
 
 ### Dockerイメージのビルド
 
@@ -256,15 +317,24 @@ img-compress ./photos --quality 80 --format webp
 
 ### Q: 透明度のあるPNGはどうすればいい？
 
-**A: PNG維持で積極的圧縮を使用**
+**A: 自動最適化または段階的に圧縮を試してください**
 
 ```bash
-# 透明度を保持したまま圧縮
-img-compress ./logos --aggressive-png --quality 60
+# 基本: 自動最適化（推奨）
+img-compress ./logos --quality 70
+
+# 手動で段階的に試したい場合:
+# ステップ1: 積極的圧縮を強制
+img-compress ./logos --aggressive-png --quality 50
+
+# ステップ2: 超強力圧縮を強制（品質は下がるがファイルサイズ最小）
+img-compress ./logos --ultra-png --quality 30
 
 # WebPも透明度をサポート（より小さい）
 img-compress ./logos --format webp --quality 80
 ```
+
+**💡 通常は自動最適化で十分です！**
 
 ### Q: 一度に大量のファイルを処理できる？
 
@@ -305,9 +375,16 @@ docker run --rm \
    img-compress ./icons --min-size 0
    ```
 
-3. **PNG維持が必要な場合**: 積極的圧縮を使用
+3. **PNG維持が必要な場合**: 自動最適化または手動で段階的圧縮
    ```bash
+   # 推奨: 自動最適化（オプション不要）
+   img-compress ./images --quality 50
+   
+   # 手動で積極的圧縮を強制
    img-compress ./images --aggressive-png --quality 50
+   
+   # さらに小さくしたい場合は超強力圧縮を強制
+   img-compress ./images --ultra-png --quality 30
    ```
 
 ### Q: 処理が遅い
@@ -315,11 +392,13 @@ docker run --rm \
 **A: 以下で高速化できます**
 
 ```bash
-# 積極的PNG圧縮を無効化
+# 積極的PNG圧縮を無効化（デフォルト設定）
 img-compress ./photos --quality 75
 
 # 形式変換で高速化
 img-compress ./photos --format webp --quality 80
+
+# 注意: --ultra-png は非常に遅いため、必要な場合のみ使用
 ```
 
 ## 開発者向け
@@ -370,6 +449,13 @@ npm run format
 
 ## バージョン履歴
 
+### v1.1.0 (最新)
+- ✅ **スマートPNG圧縮**: 自動的に最適な圧縮レベルを選択
+- ✅ **プログレスバー表示**: バッチ処理の視覚的進捗表示
+- ✅ **設定ファイル対応**: `.img-compress.config.js`と`.json`形式
+- ✅ **強化されたエラーハンドリング**: カスタム例外クラスと詳細エラー情報
+- ✅ **段階的PNG圧縮**: 標準→積極的→超強力を自動適用（オプション不要）
+
 ### v1.0.0
 - ✅ 基本的な画像圧縮機能
 - ✅ リサイズ・形式変換
@@ -390,7 +476,10 @@ Issue や Pull Request を歓迎します！
 
 - [ ] 監視モード（ファイル変更検知）
 - [ ] 差分処理（変更されたファイルのみ）
-- [ ] プログレスバー表示
-- [ ] AVIF形式サポート
-- [ ] 設定ファイル対応
-- [ ] バッチ処理レポート出力
+- [ ] AVIF形式サポート  
+- [ ] バッチ処理レポート出力（HTML/CSV）
+- [ ] GPU加速サポート
+- [ ] クラウドストレージ連携
+- [x] ~~プログレスバー表示~~ ✅ 完了
+- [x] ~~設定ファイル対応~~ ✅ 完了
+- [x] ~~PNG自動最適化~~ ✅ 完了

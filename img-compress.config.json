@@ -3,5 +3,6 @@
   "output": "./output",
   "minSize": 2048,
   "skipSmall": true,
-  "aggressivePng": true
+  "aggressivePng": false,
+  "ultraPng": true
 }

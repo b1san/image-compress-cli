@@ -37,6 +37,7 @@ program
   .option('-r, --resize <size>', 'Resize images to WIDTHxHEIGHT (e.g., 800x600)')
   .option('-f, --format <format>', 'Output format: jpeg, png, webp (default: original)')
   .option('--aggressive-png', 'Use more aggressive PNG compression (slower but smaller)', false)
+  .option('--ultra-png', 'Use maximum PNG compression (slowest but smallest)', false)
   .option('--skip-small', 'Skip files smaller than 1KB (default: true)', true)
   .option('--min-size <bytes>', 'Minimum file size to process in bytes (default: 1024)', '1024')
   .action(async (input: string, options) => {
@@ -155,6 +156,7 @@ program
           skipSmall: finalOptions.skipSmall !== false,
           minSize: parseInt(finalOptions.minSize || '1024', 10),
           aggressivePng: finalOptions.aggressivePng || false,
+          ultraPng: finalOptions.ultraPng || false,
         });
         
         results.push(result);

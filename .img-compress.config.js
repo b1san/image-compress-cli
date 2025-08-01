@@ -12,8 +12,9 @@ module.exports = {
   minSize: 1024,
   skipSmall: true,
   
-  // Use aggressive PNG compression by default
-  aggressivePng: false,
+  // PNG compression options (choose one)
+  aggressivePng: false,   // Aggressive PNG compression (slower but smaller)
+  ultraPng: false,        // Maximum PNG compression (slowest but smallest)
   
   // Default format (leave undefined to keep original format)
   // format: 'jpeg',
