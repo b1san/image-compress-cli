@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
+import { ImageCompressionError, safeFileOperation } from './errors';
 
 export interface ProcessOptions {
   quality: number;
@@ -17,8 +18,12 @@ export interface ProcessResult {
   success: boolean;
   inputPath: string;
   outputPath: string;
-  originalSize: number;
-  compressedSize: number;
+  inputSize: number;
+  outputSize: number;
+  reductionPercent: number;
+  processingTime: number;
+  skipped?: boolean;
+  reason?: string;
   error?: string;
 }
 
@@ -30,133 +35,125 @@ export async function processImage(
   outputPath: string,
   options: ProcessOptions
 ): Promise<ProcessResult> {
+  const startTime = Date.now();
+  
   try {
-    // 入力ファイルサイズを取得
-    const inputStats = fs.statSync(inputPath);
-    const originalSize = inputStats.size;
+    // 入力ファイルのサイズチェック
+    const stats = await safeFileOperation(
+      () => fs.promises.stat(inputPath),
+      inputPath,
+      'File stat check'
+    );
     
-    // 入力画像の情報を取得
-    const inputMetadata = await sharp(inputPath).metadata();
+    const inputSize = stats.size;
     
-    // 小さなファイルの処理
-    const minSize = options.minSize || 1024;
-    if (options.skipSmall !== false && originalSize < minSize) {
-      console.log(chalk.yellow(`  → Skipping small file (${originalSize} bytes, min: ${minSize})`));
-      // 元ファイルをコピー
-      fs.copyFileSync(inputPath, outputPath);
-      const outputStats = fs.statSync(outputPath);
+    if (options.skipSmall && inputSize < (options.minSize || 1024)) {
       return {
-        success: true,
         inputPath,
         outputPath,
-        originalSize,
-        compressedSize: outputStats.size,
+        success: true,
+        inputSize,
+        outputSize: inputSize,
+        reductionPercent: 0,
+        processingTime: Date.now() - startTime,
+        skipped: true,
+        reason: `File too small (${inputSize} bytes < ${options.minSize || 1024} bytes)`
       };
     }
     
-    // 出力ディレクトリを作成
+    // 出力ディレクトリの作成
     const outputDir = path.dirname(outputPath);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
+
+    // Sharp インスタンスの作成とメタデータ取得
+    const image = sharp(inputPath);
+    const inputMetadata = await image.metadata();
     
-    // Sharpでの画像処理
-    let sharpInstance = sharp(inputPath);
+    // 圧縮とリサイズの処理
+    let processedImage = image;
     
-    // メタデータを削除してファイルサイズを削減
-    sharpInstance = sharpInstance.rotate(); // 自動回転（EXIFに基づく）
-    
-    // リサイズ処理
-    if (options.width && options.height) {
-      sharpInstance = sharpInstance.resize(options.width, options.height, {
+    if (options.width || options.height) {
+      processedImage = processedImage.resize(options.width, options.height, {
         fit: 'inside',
-        withoutEnlargement: true,
+        withoutEnlargement: true
       });
     }
-    
-    // フォーマット変換と圧縮
-    switch (options.format) {
-      case 'jpeg': {
-        sharpInstance = sharpInstance.jpeg({ 
+
+    // フォーマット別の処理
+    if (options.format === 'jpeg' || (options.format === undefined && path.extname(inputPath).toLowerCase() === '.jpg') || (options.format === undefined && path.extname(inputPath).toLowerCase() === '.jpeg')) {
+      processedImage = processedImage.jpeg({
+        quality: options.quality,
+        progressive: inputSize > 10000, // 10KB以上の場合のみプログレッシブ
+        mozjpeg: true
+      });
+    } else if (options.format === 'png' || (options.format === undefined && path.extname(inputPath).toLowerCase() === '.png')) {
+      // PNGの場合、qualityを圧縮レベルに変換 (quality: 0-100 → compressionLevel: 9-0)
+      const compressionLevel = Math.round((100 - options.quality) * 9 / 100);
+      
+      if (options.aggressivePng) {
+        processedImage = processedImage.png({
+          compressionLevel: 9,
+          progressive: inputSize > 10000,
+          palette: inputMetadata?.channels === 3,
+          effort: 10,
+        });
+      } else {
+        processedImage = processedImage.png({
+          compressionLevel,
+          progressive: false,
+        });
+      }
+    } else if (options.format === 'webp') {
+      if (options.aggressivePng) {
+        processedImage = processedImage.webp({
+          quality: Math.max(20, options.quality - 20),
+          effort: 6,
+          nearLossless: false,
+          smartSubsample: true,
+        });
+      } else {
+        processedImage = processedImage.webp({
           quality: options.quality,
-          progressive: originalSize > 10000, // 10KB以上の場合のみプログレッシブ
-          mozjpeg: true // より効率的な圧縮
         });
-        break;
-      }
-      case 'png': {
-        // PNGは圧縮レベル（0-9）を使用 - より適切な計算
-        // quality 100 -> compressionLevel 0 (最小圧縮)
-        // quality 0 -> compressionLevel 9 (最大圧縮)
-        const compressionLevel = Math.round((100 - options.quality) * 9 / 100);
-        sharpInstance = sharpInstance.png({ 
-          compressionLevel: Math.max(0, Math.min(9, compressionLevel)),
-          progressive: originalSize > 10000,
-          palette: inputMetadata.channels === 3,
-          effort: options.aggressivePng ? 10 : 7 // より積極的な圧縮
-        });
-        break;
-      }
-      case 'webp': {
-        sharpInstance = sharpInstance.webp({ 
-          quality: options.quality
-        });
-        break;
-      }
-      default: {
-        // フォーマット指定がない場合は元のフォーマットを維持
-        const ext = path.extname(inputPath).toLowerCase();
-        if (ext === '.jpg' || ext === '.jpeg') {
-          sharpInstance = sharpInstance.jpeg({ 
-            quality: options.quality,
-            progressive: originalSize > 10000,
-            mozjpeg: true
-          });
-        } else if (ext === '.png') {
-          const compressionLevel = Math.round((100 - options.quality) * 9 / 100);
-          sharpInstance = sharpInstance.png({ 
-            compressionLevel: Math.max(0, Math.min(9, compressionLevel)),
-            progressive: originalSize > 10000,
-            palette: inputMetadata.channels === 3,
-            effort: options.aggressivePng ? 10 : 7
-          });
-        } else if (ext === '.webp') {
-          sharpInstance = sharpInstance.webp({ 
-            quality: options.quality
-          });
-        }
-        break;
       }
     }
-    
+
     // 画像を保存
-    await sharpInstance.toFile(outputPath);
+    await processedImage.toFile(outputPath);
     
     // 出力ファイルサイズを取得
     const outputStats = fs.statSync(outputPath);
-    const compressedSize = outputStats.size;
+    const outputSize = outputStats.size;
     
-    // PNGファイルで容量が増えた場合の提案
-    if (compressedSize > originalSize && path.extname(inputPath).toLowerCase() === '.png' && !options.format) {
-      console.log(chalk.yellow(`  💡 Tip: Consider using --format jpeg for better compression of this PNG`));
+    // ファイルサイズが増加した場合の警告
+    if (outputSize > inputSize && path.extname(inputPath).toLowerCase() === '.png' && !options.format) {
+      console.log(chalk.yellow(`⚠️  PNG compression increased file size. Consider using --format jpeg for photos.`));
     }
-    
+
+    const reductionPercent = Math.round((1 - outputSize / inputSize) * 100);
+    const processingTime = Date.now() - startTime;
+
     return {
       success: true,
       inputPath,
       outputPath,
-      originalSize,
-      compressedSize,
+      inputSize,
+      outputSize,
+      reductionPercent,
+      processingTime
     };
-    
   } catch (error) {
     return {
       success: false,
       inputPath,
       outputPath,
-      originalSize: 0,
-      compressedSize: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      inputSize: 0,
+      outputSize: 0,
+      reductionPercent: 0,
+      processingTime: Date.now() - startTime,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
@@ -165,26 +162,34 @@ export async function processImage(
  * 処理結果を表示
  */
 export function displayProcessResult(result: ProcessResult): void {
-  if (result.success) {
-    const compressionRatio = ((result.originalSize - result.compressedSize) / result.originalSize * 100);
-    const originalSizeKB = (result.originalSize / 1024).toFixed(1);
-    const compressedSizeKB = (result.compressedSize / 1024).toFixed(1);
-    
-    console.log(
-      chalk.green(`✓ ${path.basename(result.inputPath)}`) +
-      chalk.gray(` ${originalSizeKB}KB → ${compressedSizeKB}KB`) +
-      chalk.blue(` (${compressionRatio > 0 ? '-' : '+'}${Math.abs(compressionRatio).toFixed(1)}%)`)
-    );
-    
-    // デバッグ情報（容量が増えた場合）
-    if (result.compressedSize > result.originalSize) {
-      console.log(chalk.yellow(`  ⚠️  File size increased by ${(result.compressedSize - result.originalSize)} bytes`));
+  if (!result.success) {
+    console.log(chalk.red(`❌ ${path.basename(result.inputPath)}: ${result.error}`));
+    return;
+  }
+
+  if (result.skipped && result.reason) {
+    console.log(chalk.yellow(`⏭️  ${path.basename(result.inputPath)}: ${result.reason}`));
+    return;
+  }
+
+  const compressionRatio = result.reductionPercent;
+  const originalSizeKB = (result.inputSize / 1024).toFixed(1);
+  const compressedSizeKB = (result.outputSize / 1024).toFixed(1);
+  
+  console.log(chalk.green(`✅ ${path.basename(result.inputPath)}`));
+  console.log(chalk.gray(`   Size: ${originalSizeKB}KB → ${compressedSizeKB}KB`));
+  
+  if (compressionRatio > 0) {
+    console.log(chalk.gray(`   Reduction: ${compressionRatio}%`));
+  } else if (compressionRatio < 0) {
+    console.log(chalk.yellow(`   Size increased: ${Math.abs(compressionRatio)}%`));
+  }
+  
+  if (result.outputSize > result.inputSize) {
+    console.log(chalk.yellow(`  ⚠️  File size increased by ${(result.outputSize - result.inputSize)} bytes`));
+    if (path.extname(result.inputPath).toLowerCase() === '.png') {
+      console.log(chalk.gray(`      Consider using --format jpeg for photos or --aggressive-png for better compression`));
     }
-  } else {
-    console.log(
-      chalk.red(`✗ ${path.basename(result.inputPath)}`) +
-      chalk.gray(` - ${result.error}`)
-    );
   }
 }
 
@@ -192,25 +197,30 @@ export function displayProcessResult(result: ProcessResult): void {
  * 処理統計を表示
  */
 export function displaySummary(results: ProcessResult[]): void {
-  const successful = results.filter(r => r.success);
+  const successful = results.filter(r => r.success && !r.skipped);
+  const skipped = results.filter(r => r.skipped);
   const failed = results.filter(r => !r.success);
   
-  const totalOriginalSize = successful.reduce((sum, r) => sum + r.originalSize, 0);
-  const totalCompressedSize = successful.reduce((sum, r) => sum + r.compressedSize, 0);
-  const totalSaved = totalOriginalSize - totalCompressedSize;
-  const compressionRatio = totalOriginalSize > 0 ? (totalSaved / totalOriginalSize * 100) : 0;
+  const totalInputSize = successful.reduce((sum, r) => sum + r.inputSize, 0);
+  const totalOutputSize = successful.reduce((sum, r) => sum + r.outputSize, 0);
+  const totalSaved = totalInputSize - totalOutputSize;
+  const compressionRatio = totalInputSize > 0 ? (totalSaved / totalInputSize * 100) : 0;
   
   console.log(chalk.blue('\n📊 Processing Summary'));
   console.log(chalk.gray('============================'));
   console.log(chalk.green(`Successful: ${successful.length}`));
+  
+  if (skipped.length > 0) {
+    console.log(chalk.yellow(`Skipped: ${skipped.length}`));
+  }
   
   if (failed.length > 0) {
     console.log(chalk.red(`Failed: ${failed.length}`));
   }
   
   if (successful.length > 0) {
-    console.log(chalk.blue(`Original size: ${(totalOriginalSize / 1024 / 1024).toFixed(2)} MB`));
-    console.log(chalk.blue(`Compressed size: ${(totalCompressedSize / 1024 / 1024).toFixed(2)} MB`));
+    console.log(chalk.blue(`Original size: ${(totalInputSize / 1024 / 1024).toFixed(2)} MB`));
+    console.log(chalk.blue(`Compressed size: ${(totalOutputSize / 1024 / 1024).toFixed(2)} MB`));
     console.log(
       chalk.green(`Space saved: ${(totalSaved / 1024 / 1024).toFixed(2)} MB`) +
       chalk.gray(` (${compressionRatio.toFixed(1)}%)`)

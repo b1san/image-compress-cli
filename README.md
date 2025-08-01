@@ -2,15 +2,18 @@
 
 画像フォルダを対象に、CLIから一括で画像圧縮・リサイズ・形式変換を行うNode.js製のツール。
 
-## 特徴
+## 🚀 Features
 
-- 📁 ディレクトリ内の画像を再帰的に一括処理
-- 🖼️ JPEG, PNG, WebP, TIFF, BMP サポート
-- 📏 リサイズ機能（アスペクト比保持）
-- 🎨 形式変換（WebP・JPEG変換など）
-- 📊 処理結果の詳細表示（ファイルサイズ削減率など）
-- 🚀 高速処理（Sharp ライブラリ使用）
-- 🔧 PNG最適化（積極的圧縮オプション）
+- **� Batch Processing**: Process multiple images in a directory with a beautiful progress bar
+- **� Multiple Formats**: Support for JPEG, PNG, WebP, TIFF, and BMP
+- **🎯 Format Conversion**: Convert between image formats
+- **📏 Smart Resizing**: Resize images while maintaining aspect ratio
+- **⚡ High Performance**: Uses Sharp library for fast image processing
+- **🎨 Optimized PNG Compression**: Special handling for PNG files with aggressive compression options
+- **📊 Detailed Statistics**: Shows compression ratios and space saved
+- **⚙️ Configuration Files**: Support for persistent settings via config files
+- **� Error Handling**: Comprehensive error handling with helpful messages
+- **� Progress Tracking**: Visual progress bar for batch operations
 - 💡 自動提案機能（最適なフォーマット変換）
 - ⚙️ 小さなファイルのスキップ機能
 
@@ -164,6 +167,58 @@ Original size: 6.36 MB
 Compressed size: 3.71 MB
 Space saved: 2.65 MB (41.6%)
 ```
+
+## ⚙️ Configuration Files
+
+You can create configuration files to set default options:
+
+### JavaScript Configuration (.img-compress.config.js)
+```javascript
+module.exports = {
+  quality: 80,
+  output: './compressed',
+  minSize: 1024,
+  skipSmall: true,
+  aggressivePng: false,
+  // format: 'jpeg',
+  // resize: '1920x1080',
+};
+```
+
+### JSON Configuration (img-compress.config.json)
+```json
+{
+  "quality": 85,
+  "output": "./output",
+  "minSize": 2048,
+  "skipSmall": true,
+  "aggressivePng": true
+}
+```
+
+Configuration files are searched in the following order:
+1. `.img-compress.config.js` (in current directory)
+2. `img-compress.config.json` (in current directory) 
+3. `img-compress.config.js` (in current directory)
+
+CLI options will override configuration file settings.
+
+## 🛡️ Error Handling
+
+The tool includes comprehensive error handling:
+
+- **File Access Errors**: Handles permission issues and missing files
+- **Format Validation**: Validates supported image formats
+- **Size Warnings**: Alerts when compression increases file size
+- **Progress Tracking**: Shows which files fail during batch processing
+- **Graceful Recovery**: Continues processing other files if one fails
+
+## 📊 Performance Features
+
+- **Progress Bar**: Visual progress indicator for batch operations
+- **Smart PNG Handling**: Detects when PNG compression isn't effective
+- **File Size Optimization**: Skips very small files to avoid overhead
+- **Memory Efficient**: Processes images one at a time to manage memory usage
 
 ### Dockerイメージのビルド
 

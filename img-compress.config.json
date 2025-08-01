@@ -1,0 +1,7 @@
+{
+  "quality": 85,
+  "output": "./output",
+  "minSize": 2048,
+  "skipSmall": true,
+  "aggressivePng": true
+}

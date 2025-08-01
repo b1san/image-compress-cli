@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { UnsupportedFormatError, ImageCompressionError } from './errors';
 
 /**
  * サポートしている画像拡張子
@@ -76,7 +77,10 @@ export function getOutputPath(
 export function validateQuality(quality: string): number {
   const q = parseInt(quality, 10);
   if (isNaN(q) || q < 0 || q > 100) {
-    throw new Error('Quality must be a number between 0 and 100');
+    throw new ImageCompressionError(
+      'Quality must be a number between 0 and 100',
+      ''
+    );
   }
   return q;
 }
@@ -87,7 +91,7 @@ export function validateQuality(quality: string): number {
 export function validateFormat(format: string): string {
   const validFormats = ['jpeg', 'png', 'webp'];
   if (!validFormats.includes(format.toLowerCase())) {
-    throw new Error(`Format must be one of: ${validFormats.join(', ')}`);
+    throw new UnsupportedFormatError('', format);
   }
   return format.toLowerCase();
 }

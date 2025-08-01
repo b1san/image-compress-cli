@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import cliProgress from 'cli-progress';
 import * as fs from 'fs';
 import * as path from 'path';
 import { 
@@ -13,6 +14,8 @@ import {
   validateFormat 
 } from '../src/utils';
 import { processImage, displayProcessResult, displaySummary, ProcessResult } from '../src/compress';
+import { loadConfig } from '../src/config';
+import { ImageCompressionError } from '../src/errors';
 
 const program = new Command();
 
@@ -40,12 +43,30 @@ program
     const spinner = ora('Starting image compression...').start();
     
     try {
+      // 設定ファイルの読み込み
+      let config = {};
+      try {
+        const loadedConfig = await loadConfig();
+        if (loadedConfig) {
+          config = loadedConfig;
+          console.log(chalk.blue('📋 Configuration file loaded'));
+        }
+      } catch (error) {
+        // 設定ファイルがない場合は無視
+        if (error instanceof ImageCompressionError) {
+          console.log(chalk.yellow(`⚠️ Config warning: ${error.message}`));
+        }
+      }
+      
+      // 設定ファイルとCLIオプションをマージ
+      const finalOptions = { ...config, ...options };
+      
       // オプションのバリデーション
-      const quality = validateQuality(options.quality);
+      const quality = validateQuality(finalOptions.quality || '80');
       let resizeOptions: { width: number; height: number } | undefined;
       
-      if (options.resize) {
-        const parsedResize = parseResizeOption(options.resize);
+      if (finalOptions.resize) {
+        const parsedResize = parseResizeOption(finalOptions.resize);
         if (!parsedResize) {
           spinner.fail(chalk.red('Invalid resize format. Use WIDTHxHEIGHT (e.g., 800x600)'));
           process.exit(1);
@@ -54,15 +75,15 @@ program
       }
       
       let format: string | undefined;
-      if (options.format) {
-        format = validateFormat(options.format);
+      if (finalOptions.format) {
+        format = validateFormat(finalOptions.format);
       }
       
       // オプションの表示
       console.log(chalk.blue('\n📸 Image Compression CLI'));
       console.log(chalk.gray('================================'));
       console.log(chalk.green(`Input directory: ${input}`));
-      console.log(chalk.green(`Output directory: ${options.output || './output'}`));
+      console.log(chalk.green(`Output directory: ${finalOptions.output || './output'}`));
       console.log(chalk.green(`Quality: ${quality}%`));
       
       if (resizeOptions) {
@@ -85,7 +106,7 @@ program
       }
       
       // 出力ディレクトリの作成
-      const outputDir = options.output || './output';
+      const outputDir = finalOptions.output || './output';
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
         console.log(chalk.yellow(`Created output directory: ${outputDir}`));
@@ -109,28 +130,43 @@ program
       console.log(chalk.gray('============================'));
       
       const results: ProcessResult[] = [];
-      const processingSpinner = ora();
       
+      // プログレスバーの初期化
+      const progressBar = new cliProgress.SingleBar({
+        format: 'Progress |{bar}| {percentage}% | {value}/{total} | {filename}',
+        barCompleteChar: '\u2588',
+        barIncompleteChar: '\u2591',
+        hideCursor: true
+      });
+      
+      progressBar.start(imageFiles.length, 0, { filename: 'Starting...' });
+
       for (let i = 0; i < imageFiles.length; i++) {
         const inputPath = imageFiles[i];
         const outputPath = getOutputPath(inputPath, input, outputDir, format);
         
-        processingSpinner.start(`Processing ${i + 1}/${imageFiles.length}: ${path.basename(inputPath)}`);
-        
+        progressBar.update(i, { filename: path.basename(inputPath) });
+
         const result = await processImage(inputPath, outputPath, {
           quality,
           width: resizeOptions?.width,
           height: resizeOptions?.height,
           format,
-          skipSmall: options.skipSmall,
-          minSize: parseInt(options.minSize || '1024', 10),
-          aggressivePng: options.aggressivePng,
+          skipSmall: finalOptions.skipSmall !== false,
+          minSize: parseInt(finalOptions.minSize || '1024', 10),
+          aggressivePng: finalOptions.aggressivePng || false,
         });
         
-        processingSpinner.stop();
-        displayProcessResult(result);
         results.push(result);
       }
+      
+      progressBar.update(imageFiles.length, { filename: 'Complete!' });
+      progressBar.stop();
+      
+      // 処理結果の詳細表示
+      console.log(chalk.blue('\n📊 Processing Results'));
+      console.log(chalk.gray('============================'));
+      results.forEach(result => displayProcessResult(result));
       
       // 処理結果のサマリー表示
       displaySummary(results);
